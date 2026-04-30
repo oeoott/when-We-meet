@@ -5,29 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>우리 언제 봐? (실시간 공유) 📅</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
-    
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
     <style>
         :root {
             --bg-gradient: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
-            --pastel-pink: #ffefef;
-            --pastel-blue: #e3f2fd;
             --accent-soft: #ffb7b2;
+            --pastel-blue: #e3f2fd;
             --text-main: #5d5d5d;
             --shadow: 0 10px 30px rgba(0,0,0,0.05);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans KR', sans-serif; }
         body { background: var(--bg-gradient); color: var(--text-main); display: flex; justify-content: center; padding: 20px; min-height: 100vh; }
-        .wrapper { width: 100%; max-width: 900px; }
+        .wrapper { width: 100%; max-width: 1200px; } /* 가로폭을 넓혔습니다 */
         h1 { font-family: 'Gaegu', cursive; font-size: 3rem; text-align: center; color: var(--accent-soft); margin-bottom: 5px; }
         .room-info { text-align: center; font-size: 0.8rem; color: #aaa; margin-bottom: 20px; }
         
-        .main-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; }
-        .card { background: white; border-radius: 25px; padding: 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+        /* 메인 그리드를 결과창이 더 넓게 가져가도록 변경 */
+        .main-grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; align-items: start; }
+        .card { background: white; border-radius: 25px; padding: 20px; box-shadow: var(--shadow); }
 
+        /* 입력 영역 스타일 */
         .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-weight: bold; }
         .nav-btn { background: var(--pastel-blue); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
@@ -39,64 +39,75 @@
         input[type="text"] { width: 100%; padding: 12px; border: 2px solid var(--pastel-blue); border-radius: 12px; margin-bottom: 15px; outline: none; }
         .selection-list { margin-top: 15px; max-height: 200px; overflow-y: auto; border-top: 1px dashed #eee; padding-top: 10px; }
         .selection-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #fafafa; margin-bottom: 5px; border-radius: 10px; font-size: 0.85rem; }
-        
         .submit-btn { width: 100%; padding: 15px; background: var(--accent-soft); color: white; border: none; border-radius: 15px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        .reset-view-btn { width: 100%; padding: 10px; background: #eee; color: #666; border: none; border-radius: 10px; font-size: 0.8rem; cursor: pointer; margin-top: 5px; display: none; }
 
-        .result-section h2 { font-size: 1.1rem; margin-bottom: 15px; color: #ff8a80; }
-        .match-item { padding: 10px; border-radius: 12px; margin-bottom: 8px; border-left: 5px solid; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-        .perfect { border-left-color: #ffb7b2; background: #fffafa; }
-        .almost { border-left-color: #a2c2ff; background: #fafdff; }
+        /* --- 결과창 가로 배치 핵심 스타일 --- */
+        .results-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .result-column h2 { font-size: 1.1rem; margin-bottom: 15px; color: #ff8a80; border-bottom: 2px solid #fff5f5; padding-bottom: 5px; }
+        
+        .result-list { max-height: 600px; overflow-y: auto; padding-right: 5px; }
+        .match-item { padding: 10px; border-radius: 12px; margin-bottom: 8px; border-left: 5px solid; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid #f9f9f9; }
+        .perfect { border-left-color: #ffb7b2; }
+        .almost { border-left-color: #a2c2ff; }
         .match-date { font-weight: bold; display: block; font-size: 0.9rem; }
         .match-people { font-size: 0.75rem; color: #888; }
 
-        .member-badge { display: inline-block; background:#eee; padding:4px 8px; border-radius:10px; margin-right:5px; font-size:0.7rem; cursor: pointer; margin-bottom: 5px; }
+        .member-badge { display: inline-block; background:#eee; padding:4px 8px; border-radius:10px; margin-right:5px; font-size:0.7rem; cursor: pointer; margin-top: 5px; }
         .member-badge.active { background: #b2d8ff; font-weight: bold; }
 
-        @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 1024px) { 
+            .main-grid { grid-template-columns: 1fr; } 
+            .results-container { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
 
 <div class="wrapper">
     <h1>우리 언제 봐? ✨</h1>
-    <div class="room-info" id="roomInfo">이 링크를 친구에게 공유하세요! </div>
+    <div class="room-info" id="roomInfo">이 링크를 친구에게 공유하세요!</div>
 
     <div class="main-grid">
         <div class="card">
             <input type="text" id="userName" placeholder="본인의 이름을 입력하세요">
-            
             <div id="calendarTitle" style="text-align: center; font-size: 0.8rem; margin-bottom: 5px; color: #ffb7b2;"></div>
-            
             <div class="calendar-header">
                 <button class="nav-btn" onclick="changeMonth(-1)">&lt;</button>
                 <span id="monthDisplay"></span>
                 <button class="nav-btn" onclick="changeMonth(1)">&gt;</button>
             </div>
             <div class="calendar-grid" id="calendarGrid"></div>
+            
+            <div style="margin-top:15px;">
+                <p style="font-size:0.75rem; color:#aaa; margin-bottom:5px;">👤 참여 중인 멤버</p>
+                <div id="memberBadges"></div>
+            </div>
+
+            <button id="resetBtn" style="width:100%; padding:10px; background:#f0f0f0; border:none; border-radius:10px; font-size:0.8rem; cursor:pointer; margin-top:10px; display:none;" onclick="resetToMyView()">내 입력창으로 돌아가기</button>
 
             <div id="editArea">
                 <div class="selection-list" id="selectionList"></div>
-                <button class="submit-btn" onclick="saveToCloud()">내 일정 제출하고 결과 보기</button>
+                <button class="submit-btn" onclick="saveToCloud()">내 일정 제출하기</button>
             </div>
-            <button class="reset-view-btn" id="resetBtn" onclick="resetToMyView()">다시 내 일정 입력하기</button>
         </div>
 
         <div class="card">
-            <div class="result-section">
-                <h2>🍭 전원 가능한 시간</h2>
-                <div id="perfectList"></div>
-                
-                <h2 style="margin-top:20px;">🥛 한 명 빼고 다 가능</h2>
-                <div id="almostList"></div>
-
-                <div id="memberBadges" style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;"></div>
+            <div class="results-container">
+                <div class="result-column">
+                    <h2>🍭 전원 가능</h2>
+                    <div id="perfectList" class="result-list"></div>
+                </div>
+                <div class="result-column">
+                    <h2>🥛 한 명 빼고 다 가능</h2>
+                    <div id="almostList" class="result-list"></div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+    // Firebase 설정 (기존 본인 설정값 유지)
     const firebaseConfig = {
         apiKey: "AIzaSyBSd3A4JF94yf8r_xFS9pS4WxbP0YYuhw4",
         authDomain: "whenwm-a54b1.firebaseapp.com",
@@ -127,20 +138,13 @@
         const grid = document.getElementById('calendarGrid');
         document.getElementById('monthDisplay').innerText = `${viewYear}년 ${viewMonth + 1}월`;
         grid.innerHTML = '<div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>';
-
         const firstDay = new Date(viewYear, viewMonth, 1).getDay();
         const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-
         for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="day empty"></div>`;
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-            let isSelected = "";
-            if (currentViewingMember) {
-                isSelected = currentViewingMember.availability[dateStr] ? 'viewing' : '';
-            } else {
-                isSelected = selectedDates[dateStr] ? 'selected' : '';
-            }
-            grid.innerHTML += `<div class="day ${isSelected}" onclick="handleDayClick('${dateStr}')">${i}</div>`;
+            let isSel = currentViewingMember ? (currentViewingMember.availability[dateStr] ? 'viewing' : '') : (selectedDates[dateStr] ? 'selected' : '');
+            grid.innerHTML += `<div class="day ${isSel}" onclick="handleDayClick('${dateStr}')">${i}</div>`;
         }
     }
 
@@ -148,8 +152,7 @@
         if (currentViewingMember) return;
         if (selectedDates[dateStr]) delete selectedDates[dateStr];
         else selectedDates[dateStr] = ["am", "pm"];
-        renderCalendar();
-        renderSelectionList();
+        renderCalendar(); renderSelectionList();
     }
 
     function renderSelectionList() {
@@ -157,7 +160,7 @@
         list.innerHTML = Object.keys(selectedDates).sort().map(date => `
             <div class="selection-item">
                 <span>${date.substring(5)}</span>
-                <div class="time-btns">
+                <div>
                     <button style="padding:4px 8px; border:none; border-radius:6px; cursor:pointer; background:${selectedDates[date].includes('am')?'#b2d8ff':'#eee'}" onclick="toggleTime('${date}', 'am')">오전</button>
                     <button style="padding:4px 8px; border:none; border-radius:6px; cursor:pointer; background:${selectedDates[date].includes('pm')?'#b2d8ff':'#eee'}" onclick="toggleTime('${date}', 'pm')">오후</button>
                 </div>
@@ -179,8 +182,7 @@
         document.getElementById('calendarTitle').innerText = `[${name}]님의 일정 확인 중`;
         document.getElementById('editArea').style.display = 'none';
         document.getElementById('resetBtn').style.display = 'block';
-        updateBadges();
-        renderCalendar();
+        updateBadges(); renderCalendar();
     }
 
     function resetToMyView() {
@@ -188,20 +190,15 @@
         document.getElementById('calendarTitle').innerText = "";
         document.getElementById('editArea').style.display = 'block';
         document.getElementById('resetBtn').style.display = 'none';
-        updateBadges();
-        renderCalendar();
+        updateBadges(); renderCalendar();
     }
 
     function saveToCloud() {
         const name = document.getElementById('userName').value.trim();
-        if (!name) return alert("이름을 입력해주세요!");
-        if (Object.keys(selectedDates).length === 0) return alert("날짜를 선택해주세요!");
-
+        if (!name || Object.keys(selectedDates).length === 0) return alert("이름과 날짜를 입력해주세요!");
         db.collection("rooms").doc(roomId).collection("members").doc(name).set({
-            name: name,
-            availability: selectedDates,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        }).then(() => { alert("일정이 등록되었습니다!"); });
+            name: name, availability: selectedDates, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => alert("일정이 등록되었습니다!"));
     }
 
     function changeMonth(offset) {
@@ -211,26 +208,21 @@
         renderCalendar();
     }
 
-    db.collection("rooms").doc(roomId).collection("members")
-        .onSnapshot((querySnapshot) => {
-            allMembersData = [];
-            querySnapshot.forEach((doc) => allMembersData.push(doc.data()));
-            calculateResults(allMembersData);
-            updateBadges();
-        });
+    db.collection("rooms").doc(roomId).collection("members").onSnapshot((qs) => {
+        allMembersData = []; qs.forEach((doc) => allMembersData.push(doc.data()));
+        calculateResults(allMembersData); updateBadges();
+    });
 
     function updateBadges() {
-        const badgeArea = document.getElementById('memberBadges');
-        badgeArea.innerHTML = allMembersData.map(m => {
-            const active = currentViewingMember && currentViewingMember.name === m.name ? 'active' : '';
-            return `<span class="member-badge ${active}" onclick="viewMemberSchedule('${m.name}')">👤 ${m.name}</span>`;
-        }).join('');
+        document.getElementById('memberBadges').innerHTML = allMembersData.map(m => `
+            <span class="member-badge ${currentViewingMember?.name === m.name ? 'active' : ''}" onclick="viewMemberSchedule('${m.name}')">👤 ${m.name}</span>
+        `).join('');
     }
 
     function calculateResults(members) {
-        const perfectList = document.getElementById('perfectList');
-        const almostList = document.getElementById('almostList');
-        perfectList.innerHTML = ''; almostList.innerHTML = '';
+        const perfArea = document.getElementById('perfectList');
+        const almArea = document.getElementById('almostList');
+        perfArea.innerHTML = ''; almArea.innerHTML = '';
         if (members.length === 0) return;
 
         let timeMap = {};
@@ -248,10 +240,10 @@
         Object.keys(timeMap).sort().forEach(key => {
             const count = timeMap[key].length;
             if (count === total) {
-                perfectList.innerHTML += `<div class="match-item perfect"><span class="match-date">💖 ${key}</span><span class="match-people">모두 가능 (${timeMap[key].join(', ')})</span></div>`;
+                perfArea.innerHTML += `<div class="match-item perfect"><span class="match-date">💖 ${key}</span><span class="match-people">모두 가능 (${timeMap[key].join(', ')})</span></div>`;
             } else if (count === total - 1 && total > 1) {
                 const missing = members.find(m => !timeMap[key].includes(m.name)).name;
-                almostList.innerHTML += `<div class="match-item almost"><span class="match-date">🔹 ${key}</span><span class="match-people">${missing}님 제외 모두 가능</span></div>`;
+                almArea.innerHTML += `<div class="match-item almost"><span class="match-date">🔹 ${key}</span><span class="match-people">${missing}님 제외 모두 가능</span></div>`;
             }
         });
     }
