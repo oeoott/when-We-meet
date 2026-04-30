@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>우리 언제 봐? (실시간 공유) 📅</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
+            --pastel-pink: #ffefef;
+            --pastel-blue: #e3f2fd;
+            --accent-soft: #ffb7b2;
+            --text-main: #5d5d5d;
+            --shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans KR', sans-serif; }
+        body { background: var(--bg-gradient); color: var(--text-main); display: flex; justify-content: center; padding: 20px; min-height: 100vh; }
+        .wrapper { width: 100%; max-width: 900px; }
+        h1 { font-family: 'Gaegu', cursive; font-size: 3rem; text-align: center; color: var(--accent-soft); margin-bottom: 5px; }
+        .room-info { text-align: center; font-size: 0.8rem; color: #aaa; margin-bottom: 20px; }
+        
+        .main-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; }
+        .card { background: white; border-radius: 25px; padding: 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-weight: bold; }
+        .nav-btn { background: var(--pastel-blue); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
+        .day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 12px; font-size: 0.9rem; }
+        .day.selected { background-color: var(--accent-soft); color: white; font-weight: bold; }
+        .day.viewing { background-color: #b2d8ff; color: white; font-weight: bold; }
+        .day.empty { cursor: default; }
+
+        input[type="text"] { width: 100%; padding: 12px; border: 2px solid var(--pastel-blue); border-radius: 12px; margin-bottom: 15px; outline: none; }
+        .selection-list { margin-top: 15px; max-height: 200px; overflow-y: auto; border-top: 1px dashed #eee; padding-top: 10px; }
+        .selection-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #fafafa; margin-bottom: 5px; border-radius: 10px; font-size: 0.85rem; }
+        
+        .submit-btn { width: 100%; padding: 15px; background: var(--accent-soft); color: white; border: none; border-radius: 15px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .reset-view-btn { width: 100%; padding: 10px; background: #eee; color: #666; border: none; border-radius: 10px; font-size: 0.8rem; cursor: pointer; margin-top: 5px; display: none; }
+
+        .result-section h2 { font-size: 1.1rem; margin-bottom: 15px; color: #ff8a80; }
+        .match-item { padding: 10px; border-radius: 12px; margin-bottom: 8px; border-left: 5px solid; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .perfect { border-left-color: #ffb7b2; background: #fffafa; }
+        .almost { border-left-color: #a2c2ff; background: #fafdff; }
+        .match-date { font-weight: bold; display: block; font-size: 0.9rem; }
+        .match-people { font-size: 0.75rem; color: #888; }
+
+        .member-badge { display: inline-block; background:#eee; padding:4px 8px; border-radius:10px; margin-right:5px; font-size:0.7rem; cursor: pointer; margin-bottom: 5px; }
+        .member-badge.active { background: #b2d8ff; font-weight: bold; }
+
+        @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <h1>우리 언제 봐? ✨</h1>
+    <div class="room-info" id="roomInfo">이 링크를 친구에게 공유하세요! </div>
+
+    <div class="main-grid">
+        <div class="card">
+            <input type="text" id="userName" placeholder="본인의 이름을 입력하세요">
+            
+            <div id="calendarTitle" style="text-align: center; font-size: 0.8rem; margin-bottom: 5px; color: #ffb7b2;"></div>
+            
+            <div class="calendar-header">
+                <button class="nav-btn" onclick="changeMonth(-1)">&lt;</button>
+                <span id="monthDisplay"></span>
+                <button class="nav-btn" onclick="changeMonth(1)">&gt;</button>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+
+            <div id="editArea">
+                <div class="selection-list" id="selectionList"></div>
+                <button class="submit-btn" onclick="saveToCloud()">내 일정 제출하고 결과 보기</button>
+            </div>
+            <button class="reset-view-btn" id="resetBtn" onclick="resetToMyView()">다시 내 일정 입력하기</button>
+        </div>
+
+        <div class="card">
+            <div class="result-section">
+                <h2>🍭 전원 가능한 시간</h2>
+                <div id="perfectList"></div>
+                
+                <h2 style="margin-top:20px;">🥛 한 명 빼고 다 가능</h2>
+                <div id="almostList"></div>
+
+                <div id="memberBadges" style="margin-top:20px; border-top:1px solid #eee; padding-top:10px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBSd3A4JF94yf8r_xFS9pS4WxbP0YYuhw4",
+        authDomain: "whenwm-a54b1.firebaseapp.com",
+        projectId: "whenwm-a54b1",
+        storageBucket: "whenwm-a54b1.firebasestorage.app",
+        messagingSenderId: "274077954456",
+        appId: "1:274077954456:web:19a0e08c098d6d6bbb3bed",
+        measurementId: "G-3K95NM01Z9"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    let roomId = urlParams.get('room');
+    if (!roomId) {
+        roomId = Math.random().toString(36).substring(2, 8);
+        window.history.pushState({}, '', `?room=${roomId}`);
+    }
+
+    let selectedDates = {};
+    let viewYear = new Date().getFullYear();
+    let viewMonth = new Date().getMonth();
+    let currentViewingMember = null;
+    let allMembersData = [];
+
+    function renderCalendar() {
+        const grid = document.getElementById('calendarGrid');
+        document.getElementById('monthDisplay').innerText = `${viewYear}년 ${viewMonth + 1}월`;
+        grid.innerHTML = '<div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>';
+
+        const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+        const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="day empty"></div>`;
+        for (let i = 1; i <= daysInMonth; i++) {
+            const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+            let isSelected = "";
+            if (currentViewingMember) {
+                isSelected = currentViewingMember.availability[dateStr] ? 'viewing' : '';
+            } else {
+                isSelected = selectedDates[dateStr] ? 'selected' : '';
+            }
+            grid.innerHTML += `<div class="day ${isSelected}" onclick="handleDayClick('${dateStr}')">${i}</div>`;
+        }
+    }
+
+    function handleDayClick(dateStr) {
+        if (currentViewingMember) return;
+        if (selectedDates[dateStr]) delete selectedDates[dateStr];
+        else selectedDates[dateStr] = ["am", "pm"];
+        renderCalendar();
+        renderSelectionList();
+    }
+
+    function renderSelectionList() {
+        const list = document.getElementById('selectionList');
+        list.innerHTML = Object.keys(selectedDates).sort().map(date => `
+            <div class="selection-item">
+                <span>${date.substring(5)}</span>
+                <div class="time-btns">
+                    <button style="padding:4px 8px; border:none; border-radius:6px; cursor:pointer; background:${selectedDates[date].includes('am')?'#b2d8ff':'#eee'}" onclick="toggleTime('${date}', 'am')">오전</button>
+                    <button style="padding:4px 8px; border:none; border-radius:6px; cursor:pointer; background:${selectedDates[date].includes('pm')?'#b2d8ff':'#eee'}" onclick="toggleTime('${date}', 'pm')">오후</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function toggleTime(date, time) {
+        const idx = selectedDates[date].indexOf(time);
+        if (idx > -1) selectedDates[date].splice(idx, 1);
+        else selectedDates[date].push(time);
+        renderSelectionList();
+    }
+
+    function viewMemberSchedule(name) {
+        const member = allMembersData.find(m => m.name === name);
+        if (!member) return;
+        currentViewingMember = member;
+        document.getElementById('calendarTitle').innerText = `[${name}]님의 일정 확인 중`;
+        document.getElementById('editArea').style.display = 'none';
+        document.getElementById('resetBtn').style.display = 'block';
+        updateBadges();
+        renderCalendar();
+    }
+
+    function resetToMyView() {
+        currentViewingMember = null;
+        document.getElementById('calendarTitle').innerText = "";
+        document.getElementById('editArea').style.display = 'block';
+        document.getElementById('resetBtn').style.display = 'none';
+        updateBadges();
+        renderCalendar();
+    }
+
+    function saveToCloud() {
+        const name = document.getElementById('userName').value.trim();
+        if (!name) return alert("이름을 입력해주세요!");
+        if (Object.keys(selectedDates).length === 0) return alert("날짜를 선택해주세요!");
+
+        db.collection("rooms").doc(roomId).collection("members").doc(name).set({
+            name: name,
+            availability: selectedDates,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => { alert("일정이 등록되었습니다!"); });
+    }
+
+    function changeMonth(offset) {
+        viewMonth += offset;
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        else if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        renderCalendar();
+    }
+
+    db.collection("rooms").doc(roomId).collection("members")
+        .onSnapshot((querySnapshot) => {
+            allMembersData = [];
+            querySnapshot.forEach((doc) => allMembersData.push(doc.data()));
+            calculateResults(allMembersData);
+            updateBadges();
+        });
+
+    function updateBadges() {
+        const badgeArea = document.getElementById('memberBadges');
+        badgeArea.innerHTML = allMembersData.map(m => {
+            const active = currentViewingMember && currentViewingMember.name === m.name ? 'active' : '';
+            return `<span class="member-badge ${active}" onclick="viewMemberSchedule('${m.name}')">👤 ${m.name}</span>`;
+        }).join('');
+    }
+
+    function calculateResults(members) {
+        const perfectList = document.getElementById('perfectList');
+        const almostList = document.getElementById('almostList');
+        perfectList.innerHTML = ''; almostList.innerHTML = '';
+        if (members.length === 0) return;
+
+        let timeMap = {};
+        members.forEach(m => {
+            for (let date in m.availability) {
+                m.availability[date].forEach(time => {
+                    const key = `${date} ${time === 'am' ? '오전' : '오후'}`;
+                    if (!timeMap[key]) timeMap[key] = [];
+                    timeMap[key].push(m.name);
+                });
+            }
+        });
+
+        const total = members.length;
+        Object.keys(timeMap).sort().forEach(key => {
+            const count = timeMap[key].length;
+            if (count === total) {
+                perfectList.innerHTML += `<div class="match-item perfect"><span class="match-date">💖 ${key}</span><span class="match-people">모두 가능 (${timeMap[key].join(', ')})</span></div>`;
+            } else if (count === total - 1 && total > 1) {
+                const missing = members.find(m => !timeMap[key].includes(m.name)).name;
+                almostList.innerHTML += `<div class="match-item almost"><span class="match-date">🔹 ${key}</span><span class="match-people">${missing}님 제외 모두 가능</span></div>`;
+            }
+        });
+    }
+
+    renderCalendar();
+</script>
+</body>
+</html>
